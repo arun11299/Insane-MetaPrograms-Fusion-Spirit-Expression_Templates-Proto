@@ -105,6 +105,10 @@ namespace parser {
 namespace math_tool {
 namespace ast {
 
+  /*
+   * This is a visitor struct which does the evaluation
+   * of the parsed expression tree in a variant.
+   */
   struct Evaluator
   {
     typedef double result_type;
