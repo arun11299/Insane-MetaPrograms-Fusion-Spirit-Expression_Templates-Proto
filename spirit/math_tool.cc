@@ -1,25 +1,34 @@
-#define BOOST_SPIRIT_X3_DEBUG
+//#define BOOST_SPIRIT_X3_DEBUG
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <list>
+#include <typeinfo>
+#include <cassert>
 
 #include <boost/spirit/home/x3.hpp>
 #include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/spirit/home/x3/support/ast/variant.hpp>
-//#include <boost/fusion/include/io.hpp>
+#include <boost/fusion/include/io.hpp>
 
+/*
+ * First, define the AST
+ */
 namespace math_tool {
 namespace ast {
   namespace x3 = boost::spirit::x3;
 
   struct none {};
+  // Fwd decl the expression structure
   struct expression;
 
+  /*
+   * The operand can either be a double or the expression
+   * itself (recursive gramar)
+   */
   struct operand : x3::variant<
                     none,
                     double,
-                    int,
                     x3::forward_ast<expression>
                    >
   {
@@ -27,11 +36,20 @@ namespace ast {
     using base_type::operator=;
   };
 
+  /*
+   * structure to define the operation on an operand
+   * which is an operator followed by the operand variant.
+   */
   struct operation {
     char operator_;
     operand operand_;
   };
 
+  /*
+   * The expression structure which is an operand
+   * followed by a chain of operations (The operation itself
+   * may have sub expressions)
+   */
   struct expression {
     operand operand_;
     std::list<operation> operations_;
@@ -62,7 +80,6 @@ namespace parser {
   using x3::lexeme;
 
   using x3::double_;
-  using x3::int_;
   using x3::char_;
 
   x3::rule<struct expression,    ast::expression > expression    = "expression";
@@ -76,7 +93,6 @@ namespace parser {
 
   const auto primary_expr_def =
       double_
-    | int_
     | '(' > expression > ')'
     ;
 
@@ -85,6 +101,50 @@ namespace parser {
   BOOST_SPIRIT_DEFINE(expression, primary_expr, additive_expr);
 
 }} // END namespaces
+
+namespace math_tool {
+namespace ast {
+
+  struct Evaluator
+  {
+    typedef double result_type;
+
+    double operator()(const expression& expr) const
+    {
+      double left = boost::apply_visitor(Evaluator(), expr.operand_);
+      double right = 0;
+      for (const auto& oper : expr.operations_) {
+        right += (*this)(oper, left);
+      }
+
+      return left + right;
+    }
+
+    double operator()(const operation& oper, double left) const
+    {
+      double right = boost::apply_visitor(Evaluator(), oper.operand_);
+      switch (oper.operator_) {
+      case '+':
+        return left + right;
+      case '-':
+        return left - right;
+      default:
+        assert (0);
+      };
+    }
+
+    double operator()(double value) const
+    {
+      return value;
+    }
+
+    double operator()(none) const
+    {
+      return 0;
+    }
+  };
+
+}}
 
 
 int main() {
@@ -102,6 +162,8 @@ int main() {
 
   if (r) {
     std::cout << "Parsing succeded!!" << std::endl;
+    math_tool::ast::Evaluator eval;
+    std::cout << "Result = " << eval(ast) << std::endl;
   } else {
     std::cout << "Maann! it failed..." << std::endl;
   }
