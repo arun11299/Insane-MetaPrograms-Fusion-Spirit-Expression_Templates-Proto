@@ -82,13 +82,23 @@ namespace parser {
   using x3::double_;
   using x3::char_;
 
-  x3::rule<struct expression,    ast::expression > expression    = "expression";
-  x3::rule<struct primary_expr,  ast::operand    > primary_expr  = "primary_expr";
-  x3::rule<struct additive_expr, ast::expression > additive_expr = "additive_expr";
+  x3::rule<struct expression,          ast::expression > expression          = "expression";
+  x3::rule<struct primary_expr,        ast::operand    > primary_expr        = "primary_expr";
+  x3::rule<struct additive_expr,       ast::expression > additive_expr       = "additive_expr";
+  x3::rule<struct multiplicative_expr, ast::expression > multiplicative_expr = "multiplicative_expr";
 
   const auto additive_expr_def =
+    multiplicative_expr 
+    >> *( (char_('+') > multiplicative_expr)
+        | (char_('-') > multiplicative_expr)
+        )
+    ;
+
+  const auto multiplicative_expr_def =
     primary_expr
-    >> *(  char_('+') > primary_expr )
+    >> *( (char_('*') > primary_expr)
+        | (char_('/') > primary_expr)
+        )
     ;
 
   const auto primary_expr_def =
@@ -98,7 +108,7 @@ namespace parser {
 
   const auto expression_def = additive_expr;
 
-  BOOST_SPIRIT_DEFINE(expression, primary_expr, additive_expr);
+  BOOST_SPIRIT_DEFINE(expression, primary_expr, additive_expr, multiplicative_expr);
 
 }} // END namespaces
 
@@ -115,23 +125,27 @@ namespace ast {
 
     double operator()(const expression& expr) const
     {
-      double left = boost::apply_visitor(Evaluator(), expr.operand_);
-      double right = 0;
+      double r = boost::apply_visitor(*this, expr.operand_);
       for (const auto& oper : expr.operations_) {
-        right += (*this)(oper, left);
+        r = (*this)(oper, r);
       }
 
-      return left + right;
+      return r;
     }
 
     double operator()(const operation& oper, double left) const
     {
-      double right = boost::apply_visitor(Evaluator(), oper.operand_);
+      double right = boost::apply_visitor(*this, oper.operand_);
+
       switch (oper.operator_) {
       case '+':
         return left + right;
       case '-':
         return left - right;
+      case '*':
+        return left * right;
+      case '/':
+        return left / right;
       default:
         assert (0);
       };
@@ -146,6 +160,7 @@ namespace ast {
     {
       return 0;
     }
+
   };
 
 }}
@@ -167,9 +182,46 @@ int main() {
   if (r) {
     std::cout << "Parsing succeded!!" << std::endl;
     math_tool::ast::Evaluator eval;
-    std::cout << "Result = " << eval(ast) << std::endl;
+    auto r = eval(ast);
+    std::cout << "Result = " << r << std::endl;
+    assert (r == 3);
   } else {
     std::cout << "Maann! it failed..." << std::endl;
   }
+
+  expr = "(4 + (2 + 10) - 1)";
+  math_tool::ast::expression ast2;
+  r = phrase_parse(
+      expr.begin(), expr.end(),
+      (expression), space, ast2
+      );
+
+  if (r) {
+    std::cout << "Parsing succeded!!" << std::endl;
+    math_tool::ast::Evaluator eval;
+    auto r = eval(ast2);
+    std::cout << "Result = " << r << std::endl;
+    assert (r == 15);
+  } else {
+    std::cout << "Maann! it failed..." << std::endl;
+  }
+
+  expr = "4 + (2 * 6)/2";
+  math_tool::ast::expression ast3;
+  r = phrase_parse(
+      expr.begin(), expr.end(),
+      (expression), space, ast3
+      );
+
+  if (r) {
+    std::cout << "Parsing succeded!!" << std::endl;
+    math_tool::ast::Evaluator eval;
+    auto r = eval(ast3);
+    std::cout << "Result = " << r << std::endl;
+    assert (r == 10);
+  } else {
+    std::cout << "Maann! it failed..." << std::endl;
+  }
+  
   return 0;
 }
