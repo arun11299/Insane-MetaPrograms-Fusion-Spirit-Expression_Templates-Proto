@@ -21,6 +21,7 @@ namespace ast {
   struct none {};
   // Fwd decl the expression structure
   struct expression;
+  struct function_call;
 
   /*
    * The operand can either be a double or the expression
@@ -29,7 +30,8 @@ namespace ast {
   struct operand : x3::variant<
                     none,
                     double,
-                    x3::forward_ast<expression>
+                    x3::forward_ast<expression>,
+                    x3::forward_ast<function_call>
                    >
   {
     using base_type::base_type;
@@ -55,6 +57,11 @@ namespace ast {
     std::list<operation> operations_;
   };
 
+  struct function_call {
+    std::string function_name_;
+    std::list<expression> args_;
+  };
+
 }} // END namespaces
 
 BOOST_FUSION_ADAPT_STRUCT(
@@ -69,6 +76,12 @@ BOOST_FUSION_ADAPT_STRUCT(
     (math_tool::ast::operand, operand_)
 );
 
+BOOST_FUSION_ADAPT_STRUCT(
+    math_tool::ast::function_call,
+    (std::string, function_name_),
+    (std::list<math_tool::ast::expression>, args_)
+);
+
 namespace math_tool {
 namespace parser {
 
@@ -76,16 +89,19 @@ namespace parser {
   namespace ascii = x3::ascii;
 
   using x3::lit;
+  using x3::alpha;
   using x3::alnum;
   using x3::lexeme;
 
   using x3::double_;
   using x3::char_;
 
-  x3::rule<struct expression,          ast::expression > expression          = "expression";
-  x3::rule<struct primary_expr,        ast::operand    > primary_expr        = "primary_expr";
-  x3::rule<struct additive_expr,       ast::expression > additive_expr       = "additive_expr";
-  x3::rule<struct multiplicative_expr, ast::expression > multiplicative_expr = "multiplicative_expr";
+  x3::rule<struct expression,          ast::expression   > expression          = "expression";
+  x3::rule<struct primary_expr,        ast::operand      > primary_expr        = "primary_expr";
+  x3::rule<struct additive_expr,       ast::expression   > additive_expr       = "additive_expr";
+  x3::rule<struct multiplicative_expr, ast::expression   > multiplicative_expr = "multiplicative_expr";
+  x3::rule<struct function_call_expr,  ast::function_call> function_call_expr  = "function_call_expr";
+  x3::rule<struct argument_list_expr,  std::list<ast::expression>> arg_list_expr = "arg_list_expr";
 
   const auto additive_expr_def =
     multiplicative_expr 
@@ -103,12 +119,26 @@ namespace parser {
 
   const auto primary_expr_def =
       double_
+    //| function_call_expr
     | '(' > expression > ')'
+    ;
+
+  const auto arg_list_expr_def = expression % ',';
+
+  const auto function_call_expr_def =
+    lexeme[(alpha | '_') >> *(alnum | '_')]
+    >> -('(' > arg_list_expr > ')')
     ;
 
   const auto expression_def = additive_expr;
 
-  BOOST_SPIRIT_DEFINE(expression, primary_expr, additive_expr, multiplicative_expr);
+  BOOST_SPIRIT_DEFINE(expression, 
+                      primary_expr, 
+                      additive_expr,
+                      multiplicative_expr, 
+                      function_call_expr, 
+                      arg_list_expr
+                      );
 
 }} // END namespaces
 
@@ -149,6 +179,11 @@ namespace ast {
       default:
         assert (0);
       };
+    }
+
+    double operator()(const function_call&) const
+    {
+      return 42;
     }
 
     double operator()(double value) const

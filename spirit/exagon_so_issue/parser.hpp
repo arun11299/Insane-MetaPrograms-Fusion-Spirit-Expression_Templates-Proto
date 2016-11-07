@@ -30,7 +30,7 @@ namespace parser{
     
     auto const idx = as<ast::Operation>(helper::idxaccess_op > primary_expr > ']');
     auto const func = as<ast::Operation>(helper::func_call_op > primary_expr%',' > ')');
-    auto const data = as<ast::Operation>(helper::access_op > expression);
+    auto const data = as<ast::Operation>(helper::access_op > primary_expr);
 
     auto const func_call_expr_def =
         primary_expr >> *( idx | func | data );
