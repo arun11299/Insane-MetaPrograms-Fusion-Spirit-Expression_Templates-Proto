@@ -1,0 +1,3 @@
+/media/sf_amuralid/dev_test/Insane_metaprgm_libs/spirit/linker_error_example-master/CMakeFiles/edit_cache.dir
+/media/sf_amuralid/dev_test/Insane_metaprgm_libs/spirit/linker_error_example-master/CMakeFiles/rebuild_cache.dir
+/media/sf_amuralid/dev_test/Insane_metaprgm_libs/spirit/linker_error_example-master/CMakeFiles/linker_error_example.dir
